@@ -5,7 +5,7 @@ service cloud.firestore {
     // GANTI kedua email dengan email Anda dan teman Anda (huruf kecil semua).
     function diizinkan() {
       return request.auth != null
-        && request.auth.token.email in ['EMAIL_ANDA@gmail.com', 'EMAIL_TEMAN@gmail.com'];
+        && request.auth.token.email in ['rihlahgo.id@gmail.com', 'kurniawan.zakyoneal@gmail.com'];
     }
     match /{document=**} {
       allow read, write: if diizinkan();
