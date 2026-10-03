@@ -66,6 +66,8 @@ input.m{background:var(--gold2);border-color:rgba(232,177,20,.55)}
 .x{background:none;border:1px solid var(--br);border-radius:8px;color:var(--dng);padding:0;cursor:pointer}
 .vh{display:grid;grid-template-columns:2fr 1fr 34px;gap:6px;margin-bottom:8px}.vh input:first-child{font-weight:700}
 .mh,.mr{display:grid;grid-template-columns:1.25fr 1fr 1fr 1.1fr;gap:6px;align-items:center;margin-bottom:5px;font-size:14px}.mh{font-size:12px;color:var(--mut);font-weight:600}.mr b{color:var(--pri);font-size:13px}
+.fr{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-top:1px solid var(--br)}
+.nav button{font-size:13px}
 .sv{position:sticky;bottom:78px;background:var(--gold2);border:1px solid var(--gold);border-radius:12px;padding:8px 10px;display:flex;gap:8px;align-items:center;justify-content:space-between;z-index:4}
 </style>
 <script>
@@ -103,7 +105,7 @@ setTimeout(function(){if(!window.__boot){var m=document.getElementById("loginMsg
       <textarea id="cfgTxt" placeholder='const firebaseConfig = { apiKey: "...", authDomain: "...", projectId: "...", ... };'></textarea>
       <button class="btn a s" id="cfgSave" type="button" style="margin-top:8px">Simpan konfigurasi</button>
     </div>
-    <div style="margin-top:14px"><a href="#" id="goSetup" class="note">Masalah login? Atur konfigurasi</a> <span class="note">· v3</span></div>
+    <div style="margin-top:14px"><a href="#" id="goSetup" class="note">Masalah login? Atur konfigurasi</a> <span class="note">· v4</span></div>
   </div>
 </div>
 
@@ -131,9 +133,11 @@ setTimeout(function(){if(!window.__boot){var m=document.getElementById("loginMsg
         <div><label>6. Jenis Paket</label><select id="paket" required></select></div>
         <div><label>7. Jenis Kendaraan</label><select id="kend" required></select></div>
         <div style="display:contents" id="staffBox"></div>
-        <div><label>11. Harga Tour (SAR)</label><input id="harga" type="number" inputmode="decimal" min="0" step="any"><div class="note" id="hint"></div></div>
-        <div class="full"><label>12. Status Trip</label><select id="stf"></select></div>
-        <div class="full"><label>13. Keterangan</label><textarea id="ket"></textarea></div>
+        <div><label>11. Harga Tour (SAR)</label><input id="harga" type="number" inputmode="decimal" min="0" step="any"></div>
+        <div><label>12. Modal (SAR)</label><input id="modal" type="number" inputmode="decimal" min="0" step="any"></div>
+        <div class="full note" id="hint"></div>
+        <div class="full"><label>13. Status Trip</label><select id="stf"></select></div>
+        <div class="full"><label>14. Keterangan</label><textarea id="ket"></textarea></div>
       </div>
       <div class="acts" style="margin-top:12px"><button class="btn" id="save">Simpan</button><button class="btn g" id="cancel" type="button">Batal</button></div>
     </form>
@@ -149,6 +153,8 @@ setTimeout(function(){if(!window.__boot){var m=document.getElementById("loginMsg
     <div id="dbBody"></div>
   </section>
 
+  <section id="p-fin" class="hide"><h2 class="pt" data-ui="titleFin"></h2><div id="finBody"></div></section>
+
   <!-- ===== PENGATURAN ===== -->
   <section id="p-set" class="hide">
     <h2 class="pt" data-ui="tabSet"></h2>
@@ -161,14 +167,14 @@ setTimeout(function(){if(!window.__boot){var m=document.getElementById("loginMsg
     <div class="card note">Tips: tambahkan ke Layar Utama lewat Safari → Bagikan → Tambah ke Layar Utama.</div>
   </section>
 </div>
-<nav class="nav hide" id="nav"><button data-go="res" data-ui="tabRes"></button><button data-go="db" data-ui="tabDb"></button><button data-go="set" data-ui="tabSet"></button></nav>
+<nav class="nav hide" id="nav"><button data-go="res" data-ui="tabRes"></button><button data-go="db" data-ui="tabDb"></button><button data-go="fin" data-ui="tabFin"></button><button data-go="set" data-ui="tabSet"></button></nav>
 
 <script type="module">
 window.__boot=true;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const clone=o=>JSON.parse(JSON.stringify(o));
-const sar=n=>n||n===0?"SAR "+Number(n).toLocaleString("en-US"):"–";
+const sar=n=>n||n===0?"SAR "+Number(n).toLocaleString("en-US",{maximumFractionDigits:2}):"–";
 const num=v=>{v=String(v).trim().replace(",",".");return v===""||isNaN(Number(v))?null:Number(v)};
 const getP=(o,p)=>p.split(".").reduce((a,k)=>a==null?a:a[k],o);
 function setP(o,p,v){const k=p.split(".");let a=o;for(let i=0;i<k.length-1;i++){if(a[k[i]]==null)a[k[i]]=/^\d+$/.test(k[i+1])?[]:{};a=a[k[i]]}a[k[k.length-1]]=v}
@@ -179,8 +185,8 @@ const stepsOf=b=>{const i=ST.findIndex(x=>x.v===stOf(b).v);return i>=5?"":`<span
 function arm(btn,fn,lbl){if(btn.dataset.arm){fn();return}btn.dataset.arm=1;const o=btn.textContent;btn.textContent=lbl||"Yakin hapus?";btn.classList.add("arm");setTimeout(()=>{if(btn.isConnected){delete btn.dataset.arm;btn.textContent=o;btn.classList.remove("arm")}},3500)}
 
 /* ---------- TEKS DASHBOARD ---------- */
-const DEFUI={slogan:"Your Comfort, Our Craft",subtitle:"Dashboard Reservasi & Database",welcome:"Selamat datang di dashboard RihlahGo",tabRes:"📅 Reservasi",tabDb:"🗂 Database",tabSet:"⚙ Pengaturan",titleRes:"Reservasi & Jadwal Trip",titleDb:"Database RihlahGo",btnNew:"＋ Reservasi baru"};
-const UIF=[["slogan","Slogan"],["subtitle","Subjudul header"],["welcome","Kalimat sambutan"],["tabRes","Nama menu Reservasi"],["tabDb","Nama menu Database"],["tabSet","Nama menu Pengaturan"],["titleRes","Judul halaman Reservasi"],["titleDb","Judul halaman Database"],["btnNew","Teks tombol reservasi baru"]];
+const DEFUI={slogan:"Your Comfort, Our Craft",subtitle:"Dashboard Reservasi & Database",welcome:"Selamat datang di dashboard RihlahGo",tabRes:"📅 Reservasi",tabDb:"🗂 Database",tabSet:"⚙ Pengaturan",titleRes:"Reservasi & Jadwal Trip",titleDb:"Database RihlahGo",tabFin:"💰 Keuangan",titleFin:"Keuangan & Bagi Hasil",btnNew:"＋ Reservasi baru"};
+const UIF=[["slogan","Slogan"],["subtitle","Subjudul header"],["welcome","Kalimat sambutan"],["tabRes","Nama menu Reservasi"],["tabDb","Nama menu Database"],["tabSet","Nama menu Pengaturan"],["titleRes","Judul halaman Reservasi"],["titleDb","Judul halaman Database"],["tabFin","Nama menu Keuangan"],["titleFin","Judul halaman Keuangan"],["btnNew","Teks tombol reservasi baru"]];
 let ui=Object.assign({},DEFUI);
 try{Object.assign(ui,JSON.parse(localStorage.getItem("rg_ui")||"{}"))}catch(e){}
 function applyUI(){document.querySelectorAll("[data-ui]").forEach(el=>el.textContent=ui[el.dataset.ui]??DEFUI[el.dataset.ui]??"")}
@@ -201,14 +207,15 @@ const DEFCAT={
   pk:["Paket Historical","Paket Memorical"],vehicles:[V("Sedan","3 Pax",[550,600],[600,650]),V("Hiace","10 Pax",[950,1050],[1000,1150]),V("Staria","7 Pax",[800,850],[850,950]),V("Coaster","20 Pax",[1600,1750],[1650,1900])],
   inc:["Exclusive Transport\nGuide\nTiket GMC\nDurasi Trip 3 Jam","Exclusive Transport\nFotoghrapher\nTiket GMC\nDurasi Trip 3 Jam"]},
  petugas:{guide:["Abdul Azis","Athian Rifai Faldiansyah","Yahya Ayyasy","Miftah Fauzi","Pasha Ardhena"].map(n=>({n})),photo:["Faris Shafwan Haidar","Muhammad Fauzi Anas","Habib Maulana Rifky","Rofiul Izza","Aji Muhammad Rifai"].map(n=>({n})),supir:["Muhammad Ardhia Rahman","Alwi Bennatar"].map(n=>({n}))}};
-const TOURS=[{name:"Tour Al Ula",key:"paketAlula"},{name:"Tour Jabal Uhud",key:"paketUhud"}];
+const BASE_TOURS=[{name:"Tour Al Ula",key:"paketAlula"},{name:"Tour Jabal Uhud",key:"paketUhud"}];
+const tours=()=>BASE_TOURS.concat(Object.keys(cat).filter(k=>k.startsWith("c:")&&cat[k].type==="tour").map(k=>({name:cat[k].name,key:k})));
 let cat=clone(DEFCAT),work={},dirty={},opts={};
 function computeOpts(){
   const nm=a=>a.map(x=>x.n).filter(Boolean);
-  opts={tours:TOURS.map(t=>({name:t.name,pakets:cat[t.key].pk.filter(Boolean),kend:nm(cat[t.key].vehicles)})),guide:nm(cat.petugas.guide),photo:nm(cat.petugas.photo),supir:nm(cat.petugas.supir)};
+  opts={tours:tours().map(t=>({name:t.name,pakets:cat[t.key].pk.filter(Boolean),kend:nm(cat[t.key].vehicles)})),guide:nm(cat.petugas.guide),photo:nm(cat.petugas.photo),supir:nm(cat.petugas.supir)};
 }
 computeOpts();
-function look(tour,paket,kend){const t=TOURS.find(x=>x.name===tour);if(!t)return null;const d=cat[t.key],pi=d.pk.indexOf(paket),v=d.vehicles.find(x=>x.n===kend);
+function look(tour,paket,kend){const t=tours().find(x=>x.name===tour);if(!t)return null;const d=cat[t.key],pi=d.pk.indexOf(paket),v=d.vehicles.find(x=>x.n===kend);
   if(pi<0||!v||!v.p[pi])return null;const {m,j}=v.p[pi];return m==null&&j==null?null:{m,j}}
 
 /* ---------- LOGIN / RESET / FIREBASE ---------- */
@@ -253,12 +260,18 @@ async function init(){
     if(u){$("who").textContent="Masuk sebagai "+u.email;listen();go(localStorage.getItem("rg_tab")||"res")}});
 }
 const fail=e=>alert("Gagal menyimpan: "+(e.code||e.message));
+const ref=k=>k.startsWith("c:")?fb.doc(fs,"custom",k.slice(2)):fb.doc(fs,"catalog",k);
 function listen(){
   const D=(c,i)=>fb.doc(fs,c,i);
   unsubs.push(fb.onSnapshot(D("config","ui"),s=>{if(s.exists()){ui=Object.assign({},DEFUI,s.data());try{localStorage.setItem("rg_ui",JSON.stringify(ui))}catch(e){}}applyUI();fillUiForm()}));
   ["modalAlula","paketAlula","paketUhud","petugas"].forEach(k=>unsubs.push(fb.onSnapshot(D("catalog",k),s=>{
     if(!dirty[k]){cat[k]=s.exists()?s.data():clone(DEFCAT[k]);work[k]=clone(cat[k])}else if(s.exists())cat[k]=s.data();
-    computeOpts();if(!$("p-db").classList.contains("hide")&&!dirty[k])renderDb();render()})));
+    computeOpts();if(!$("p-db").classList.contains("hide")&&!dirty[k]&&!addMode)renderDb();render()})));
+  unsubs.push(fb.onSnapshot(fb.collection(fs,"custom"),s=>{const ids=s.docs.map(d=>"c:"+d.id);
+    Object.keys(cat).filter(k=>k.startsWith("c:")&&!ids.includes(k)).forEach(k=>{delete cat[k];delete work[k];delete dirty[k]});
+    s.docs.forEach(d=>{const k="c:"+d.id;if(!dirty[k]){cat[k]=d.data();work[k]=clone(cat[k])}});
+    computeOpts();if(!$("p-db").classList.contains("hide")&&!addMode)renderDb();render()}));
+  unsubs.push(fb.onSnapshot(D("config","fin"),s=>{if(s.exists()&&s.data().splits)fin=s.data();render()}));
   unsubs.push(fb.onSnapshot(fb.collection(fs,"bookings"),s=>{data=s.docs.map(d=>({id:d.id,...d.data()}));
     $("status").textContent=s.metadata.fromCache?"⚠ Offline – akan sinkron saat online":"● Tersinkron realtime";render()},
     e=>{$("status").textContent=e.code==="permission-denied"?"⛔ Akun ini belum diizinkan – cek email di Firestore Rules":"Gagal memuat: "+e.code}));
@@ -269,9 +282,9 @@ async function persist(b){
 const remove=id=>fb.deleteDoc(fb.doc(fs,"bookings",id)).catch(fail);
 
 /* ---------- NAVIGASI ---------- */
-function go(p){["res","db","set"].forEach(x=>$("p-"+x).classList.toggle("hide",x!==p));
+function go(p){["res","db","fin","set"].forEach(x=>$("p-"+x).classList.toggle("hide",x!==p));
   document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("on",b.dataset.go===p));
-  try{localStorage.setItem("rg_tab",p)}catch(e){}if(p==="db")renderDb();window.scrollTo(0,0)}
+  try{localStorage.setItem("rg_tab",p)}catch(e){}if(p==="db")renderDb();if(p==="fin")renderFin();window.scrollTo(0,0)}
 document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>go(b.dataset.go));
 
 /* ---------- PENGATURAN TEKS ---------- */
@@ -285,8 +298,9 @@ $("pwBtn").onclick=async()=>{try{await fb.sendPasswordResetEmail(auth,me.email);
 fillUiForm();
 
 /* ---------- DATABASE ---------- */
-let dbTab="modal";
-const DBT=[["modal","Modal Al Ula","modalAlula"],["alula","Paket Al Ula","paketAlula"],["uhud","Paket Jabal Uhud","paketUhud"],["ptg","Petugas","petugas"]];
+const BASEDB=[["modal","Modal Al Ula","modalAlula"],["alula","Paket Al Ula","paketAlula"],["uhud","Paket Jabal Uhud","paketUhud"],["ptg","Petugas","petugas"]];
+let dbTab="modal",addMode=false;
+const DBT=()=>BASEDB.concat(Object.keys(cat).filter(k=>k.startsWith("c:")).sort((a,b)=>(cat[a].ts||0)-(cat[b].ts||0)).map(k=>[k,(cat[k].type==="tour"?"🧳 ":"📋 ")+(cat[k].name||"Tanpa nama"),k]));
 const mg=a=>a.m!=null&&a.j!=null?`${(a.j-a.m).toLocaleString("en-US")} (${a.m?Math.round((a.j-a.m)/a.m*100):0}%)`:"–";
 const COLS={n:{k:"n",l:"Nama",t:"text",f:2},h:{k:"h",l:"Modal (SAR)",t:"num",f:1,m:1},c:{k:"c",l:"Kontak",t:"text",f:1.4},kk:{k:"k",l:"Keterangan",t:"text",f:1.2},u:{k:"u",l:"Satuan",t:"text",f:.8}};
 function rows(key,path,title,cols,add){
@@ -296,33 +310,49 @@ function rows(key,path,title,cols,add){
    `<button class="btn g s" data-add="${key}|${path}" data-tpl='${esc(JSON.stringify(tpl))}'>＋ ${add}</button></div>`}
 function matrix(key){
   const d=work[key];
-  return `<div class="card grp"><h4>Nama paket</h4><div class="grid" style="grid-template-columns:repeat(${d.pk.length},1fr)">${d.pk.map((p,i)=>`<input data-k="${key}" data-p="pk.${i}" data-ty="text" value="${esc(p)}">`).join("")}</div></div>`+
+  return (d.type==="tour"?`<div class="card grp"><label>Nama tour (menjadi pilihan Jenis Tour di Reservasi)</label><input data-k="${key}" data-p="name" data-ty="text" value="${esc(d.name)}"></div>`:"")+`<div class="card grp"><h4>Nama paket</h4><div class="grid" style="grid-template-columns:repeat(${d.pk.length},1fr)">${d.pk.map((p,i)=>`<input data-k="${key}" data-p="pk.${i}" data-ty="text" value="${esc(p)}">`).join("")}</div></div>`+
   d.vehicles.map((v,vi)=>`<div class="card"><div class="vh"><input data-k="${key}" data-p="vehicles.${vi}.n" data-ty="text" value="${esc(v.n)}" placeholder="Kendaraan"><input data-k="${key}" data-p="vehicles.${vi}.pax" data-ty="text" value="${esc(v.pax)}" placeholder="Pax"><button class="x" data-del="${key}|vehicles|${vi}">✕</button></div>
    <div class="mh"><span>Paket</span><span>Modal</span><span>Jual</span><span>Margin</span></div>
    ${d.pk.map((p,pi)=>{const a=v.p[pi]||{m:null,j:null};return `<div class="mr"><span>${esc(p)}</span><input class="m" inputmode="decimal" data-k="${key}" data-p="vehicles.${vi}.p.${pi}.m" data-ty="num" value="${a.m??""}"><input inputmode="decimal" data-k="${key}" data-p="vehicles.${vi}.p.${pi}.j" data-ty="num" value="${a.j??""}"><b>${mg(a)}</b></div>`}).join("")}</div>`).join("")+
   `<button class="btn g s" data-add="${key}|vehicles" data-tpl='${esc(JSON.stringify({n:"",pax:"",p:d.pk.map(()=>({m:null,j:null}))}))}'>＋ Tambah kendaraan</button>
    <div class="card grp" style="margin-top:12px"><h4>Include per paket</h4>${d.pk.map((p,i)=>`<label>${esc(p)} (satu item per baris)</label><textarea data-k="${key}" data-p="inc.${i}" data-ty="text" style="margin-bottom:8px">${esc(d.inc[i]||"")}</textarea>`).join("")}
    ${d.note!==undefined?`<label>Catatan</label><input data-k="${key}" data-p="note" data-ty="text" value="${esc(d.note)}">`:""}</div>`}
+function tableEd(key){const d=work[key],n=d.cols.length,g=`display:grid;gap:6px;grid-template-columns:repeat(${n},minmax(120px,1fr)) 34px;margin-bottom:6px`;
+  return `<div class="card grp"><label>Nama database</label><input data-k="${key}" data-p="name" data-ty="text" value="${esc(d.name)}"><h4 style="margin-top:12px">Kolom</h4>`+
+   d.cols.map((c,i)=>`<div class="vh"><input data-k="${key}" data-p="cols.${i}.n" data-ty="text" value="${esc(c.n)}"><select data-k="${key}" data-p="cols.${i}.t" data-ty="text"><option value="text" ${c.t==="text"?"selected":""}>Teks</option><option value="num" ${c.t==="num"?"selected":""}>Angka</option></select><button class="x" data-del="${key}|cols|${i}">✕</button></div>`).join("")+
+   `<button class="btn g s" data-add="${key}|cols" data-tpl='${esc(JSON.stringify({id:"c"+Date.now().toString(36),n:"Kolom baru",t:"text"}))}'>＋ Tambah kolom</button></div>
+   <div class="card grp"><h4>Data</h4><div style="overflow-x:auto"><div style="min-width:max-content"><div class="gh" style="${g}">${d.cols.map(c=>`<span>${esc(c.n)}</span>`).join("")}<span></span></div>`+
+   (d.rows||[]).map((r,i)=>`<div style="${g}">${d.cols.map(c=>`<input data-k="${key}" data-p="rows.${i}.${c.id}" data-ty="${c.t}" ${c.t==="num"?'inputmode="decimal"':""} value="${esc(r[c.id])}">`).join("")}<button class="x" data-del="${key}|rows|${i}">✕</button></div>`).join("")+
+   `</div></div><button class="btn g s" data-add="${key}|rows" data-tpl="{}">＋ Tambah baris</button></div>`}
+const addPanel=`<div class="card"><b>Tambah database baru</b><label style="margin-top:10px">Nama</label><input id="newName" placeholder="mis. Hotel, Vendor Madinah, Tour Madinah City"><label style="margin-top:10px">Jenis</label><select id="newType"><option value="table">Tabel bebas – kolom diatur sendiri</option><option value="tour">Paket tour baru – otomatis jadi Jenis Tour di Reservasi</option></select><div class="acts" style="margin-top:12px"><button class="btn" id="newCreate">Buat</button><button class="btn g" id="newCancel">Batal</button></div></div>`;
 function renderDb(){
-  $("pills").innerHTML=DBT.map(([t,l])=>`<button class="pill ${t===dbTab?"on":""}" data-tab="${t}">${l}</button>`).join("");
-  const key=DBT.find(x=>x[0]===dbTab)[2];if(!work[key])work[key]=clone(cat[key]);let h="";
+  const T=DBT();if(!T.some(x=>x[0]===dbTab))dbTab="modal";
+  $("pills").innerHTML=T.map(([t,l])=>`<button class="pill ${t===dbTab&&!addMode?"on":""}" data-tab="${esc(t)}">${esc(l)}</button>`).join("")+`<button class="pill ${addMode?"on":""}" data-tab="__add" style="border-style:dashed">＋ Tambah</button>`;
+  if(addMode){$("dbBody").innerHTML=addPanel;return}
+  const key=T.find(x=>x[0]===dbTab)[2];if(!work[key])work[key]=clone(cat[key]);let h="";
   const L='<div class="legend">🟨 Kolom berwarna emas = <b>harga modal</b> (tanpa margin). Harga yang diisi di sini otomatis dipakai sebagai saran harga di form Reservasi.</div>';
-  if(dbTab==="modal")h=L+rows(key,"transport","🚌 Transport",[COLS.n,COLS.h,COLS.c],"Tambah transport")+rows(key,"destinasi","📍 Destinasi",[COLS.n,COLS.h,COLS.kk],"Tambah destinasi")+rows(key,"additional","➕ Additional",[COLS.n,COLS.h],"Tambah additional")+rows(key,"konsumsi","🍽 Konsumsi",[COLS.n,COLS.h,COLS.c],"Tambah konsumsi");
-  else if(dbTab==="alula")h=L+matrix(key);
-  else if(dbTab==="uhud")h=L+rows(key,"transport","🚌 Tarif transport",[COLS.n,COLS.h],"Tambah transport")+rows(key,"additional","➕ Additional",[COLS.n,COLS.h,COLS.u],"Tambah additional")+matrix(key);
-  else h=rows(key,"guide","🧭 Tour Guide",[{...COLS.n,l:"Nama"}],"Tambah guide")+rows(key,"photo","📷 Photographer",[COLS.n],"Tambah photographer")+rows(key,"supir","🚗 Supir",[COLS.n],"Tambah supir")+'<div class="note">Daftar ini otomatis menjadi pilihan di form Reservasi.</div>';
+  if(key==="modalAlula")h=L+rows(key,"transport","🚌 Transport",[COLS.n,COLS.h,COLS.c],"Tambah transport")+rows(key,"destinasi","📍 Destinasi",[COLS.n,COLS.h,COLS.kk],"Tambah destinasi")+rows(key,"additional","➕ Additional",[COLS.n,COLS.h],"Tambah additional")+rows(key,"konsumsi","🍽 Konsumsi",[COLS.n,COLS.h,COLS.c],"Tambah konsumsi");
+  else if(key==="paketAlula")h=L+matrix(key);
+  else if(key==="paketUhud")h=L+rows(key,"transport","🚌 Tarif transport",[COLS.n,COLS.h],"Tambah transport")+rows(key,"additional","➕ Additional",[COLS.n,COLS.h,COLS.u],"Tambah additional")+matrix(key);
+  else if(key==="petugas")h=rows(key,"guide","🧭 Tour Guide",[COLS.n],"Tambah guide")+rows(key,"photo","📷 Photographer",[COLS.n],"Tambah photographer")+rows(key,"supir","🚗 Supir",[COLS.n],"Tambah supir")+'<div class="note">Daftar ini otomatis menjadi pilihan di form Reservasi.</div>';
+  else{h=(work[key].type==="tour"?L+matrix(key):tableEd(key))+`<button class="btn g s d" data-act="deltab">Hapus database ini</button>`}
   h+=`<div class="sv ${dirty[key]?"":"hide"}" id="sv"><span class="note">Ada perubahan belum disimpan</span><span><button class="btn s" id="dbSave">Simpan</button> <button class="btn g s" id="dbCancel">Batalkan</button></span></div>`;
-  $("dbBody").innerHTML=h;
-}
-const curKey=()=>DBT.find(x=>x[0]===dbTab)[2];
-$("pills").onclick=e=>{const b=e.target.closest("[data-tab]");if(b){dbTab=b.dataset.tab;renderDb()}};
+  $("dbBody").innerHTML=h}
+function createDb(){const name=$("newName").value.trim();if(!name)return alert("Isi nama database.");
+  const k="c:x"+Date.now().toString(36),ts=Date.now(),tour=$("newType").value==="tour";
+  const o=tour?{type:"tour",name:/^tour/i.test(name)?name:"Tour "+name,ts,pk:["Paket 1","Paket 2"],vehicles:[V("Sedan","3 Pax",null,null)],inc:["",""],note:""}:{type:"table",name,ts,cols:[{id:"a",n:"Nama",t:"text"},{id:"b",n:"Harga (SAR)",t:"num"},{id:"c",n:"Keterangan",t:"text"}],rows:[]};
+  cat[k]=o;work[k]=clone(o);dbTab=k;addMode=false;computeOpts();renderDb();fb.setDoc(ref(k),o).catch(fail)}
+function delTab(k){fb.deleteDoc(ref(k)).catch(fail);delete cat[k];delete work[k];delete dirty[k];dbTab="modal";computeOpts();renderDb()}
+const curKey=()=>DBT().find(x=>x[0]===dbTab)[2];
+$("pills").onclick=e=>{const b=e.target.closest("[data-tab]");if(!b)return;if(b.dataset.tab==="__add")addMode=true;else{addMode=false;dbTab=b.dataset.tab}renderDb()};
 $("dbBody").addEventListener("input",e=>{const t=e.target,p=t.dataset.p;if(!p)return;let v=t.value;if(t.dataset.ty==="num")v=num(v);
   setP(work[t.dataset.k],p,v);dirty[t.dataset.k]=true;$("sv").classList.remove("hide");
   const mr=t.closest(".mr");if(mr){const i=mr.querySelectorAll("input");mr.querySelector("b").textContent=mg({m:num(i[0].value),j:num(i[1].value)})}});
 $("dbBody").addEventListener("click",e=>{const t=e.target.closest("button");if(!t)return;const k=curKey();
+  if(t.id==="newCancel"){addMode=false;renderDb();return}if(t.id==="newCreate"){createDb();return}if(t.dataset.act==="deltab"){arm(t,()=>delTab(k),"Yakin hapus?");return}
   if(t.dataset.add){const [key,path]=t.dataset.add.split("|");getP(work[key],path).push(JSON.parse(t.dataset.tpl));dirty[key]=true;renderDb()}
   else if(t.dataset.del){arm(t,()=>{const [key,path,i]=t.dataset.del.split("|");getP(work[key],path).splice(+i,1);dirty[key]=true;renderDb()},"✓")}
-  else if(t.id==="dbSave"){fb.setDoc(fb.doc(fs,"catalog",k),work[k]).then(()=>{dirty[k]=false;renderDb()}).catch(fail)}
+  else if(t.id==="dbSave"){fb.setDoc(ref(k),work[k]).then(()=>{dirty[k]=false;renderDb()}).catch(fail)}
   else if(t.id==="dbCancel"){dirty[k]=false;work[k]=clone(cat[k]);renderDb()}});
 
 /* ---------- FORM RESERVASI ---------- */
@@ -330,7 +360,7 @@ const STAFF=[{k:"guide",n:8,label:"Tour Guide",ic:"🧭"},{k:"photo",n:9,label:"
 const startOf=b=>new Date(b.tgl+"T"+b.jam);
 const stf=(b,k)=>b[k]??(k==="guide"?b.petugas:null)??"-";
 const clean=a=>[...new Set(a.map(s=>s.trim()).filter(Boolean))];
-let editing=null,editObj=null,lastAuto=null;
+let editing=null,editObj=null,lastAuto=null,lastAutoM=null;
 function fillSel(el,items,cur,ph){const a=[...items];if(cur&&!a.includes(cur))a.push(cur);el.innerHTML=(ph?`<option value="">${ph}</option>`:"")+a.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("");el.value=cur||""}
 function buildStaffForm(){
   $("stf").innerHTML=ST.map(x=>`<option value="${x.v}">${x.l}</option>`).join("");
@@ -344,27 +374,29 @@ function setStaff(s,val){const all=["-",CONF].concat(opts[s.k]||[]),sel=$("s_"+s
 const getStaff=s=>{const sel=$("s_"+s.k);return sel.value==="__n"?($("t_"+s.k).value.trim()||CONF):sel.value};
 const tourObj=n=>opts.tours.find(t=>t.name===n);
 function refreshDeps(p,k){const t=tourObj($("tour").value);fillSel($("paket"),t?t.pakets:[],p,"— pilih paket —");fillSel($("kend"),t?t.kend:[],k,"— pilih kendaraan —")}
-function hintPrice(force){const l=look($("tour").value,$("paket").value,$("kend").value),h=$("harga");
-  if(l&&l.j!=null){if(force||h.value===""||Number(h.value)===lastAuto){h.value=l.j;lastAuto=l.j}$("hint").textContent=`Katalog: jual ${sar(l.j)} · modal ${sar(l.m)}`}
-  else $("hint").textContent=$("tour").value&&$("paket").value&&$("kend").value?"Tidak ada harga katalog untuk kombinasi ini – isi manual.":""}
+function hintPrice(force){const l=look($("tour").value,$("paket").value,$("kend").value),h=$("harga"),m=$("modal");
+  if(l){if(l.j!=null&&(force||h.value===""||Number(h.value)===lastAuto)){h.value=l.j;lastAuto=l.j}
+    if(l.m!=null&&(force||m.value===""||Number(m.value)===lastAutoM)){m.value=l.m;lastAutoM=l.m}
+    $("hint").textContent=`Katalog: jual ${sar(l.j)} · modal ${sar(l.m)} (bisa diubah manual)`}
+  else $("hint").textContent=$("tour").value&&$("paket").value&&$("kend").value?"Tidak ada harga katalog untuk kombinasi ini – isi harga & modal manual.":""}
 $("tour").onchange=()=>{const p=$("paket").value,k=$("kend").value,t=tourObj($("tour").value);refreshDeps(t&&t.pakets.includes(p)?p:"",t&&t.kend.includes(k)?k:"");hintPrice(false)};
 $("paket").onchange=$("kend").onchange=()=>hintPrice(false);
-function showForm(b){editing=b?b.id:null;editObj=b||null;lastAuto=null;const v=b||{};
+function showForm(b){editing=b?b.id:null;editObj=b||null;lastAuto=null;lastAutoM=null;const v=b||{};
   $("form").classList.remove("hide");
-  $("nama").value=v.nama||"";$("pax").value=v.pax||"";$("harga").value=v.harga??"";$("tgl").value=v.tgl||"";$("jam").value=v.jam||"";$("ket").value=v.ket||"";$("stf").value=v.status||"reserved";
+  $("nama").value=v.nama||"";$("pax").value=v.pax||"";$("harga").value=v.harga??"";$("modal").value=v.modal??"";$("tgl").value=v.tgl||"";$("jam").value=v.jam||"";$("ket").value=v.ket||"";$("stf").value=v.status||"reserved";
   fillSel($("tour"),opts.tours.map(t=>t.name),v.tour||"","— pilih tour —");refreshDeps(v.paket||"",v.kend||"");
   STAFF.forEach(s=>setStaff(s,b?stf(v,s.k):null));hintPrice(false);$("nama").focus();$("form").scrollIntoView({behavior:"smooth"})}
 $("newBtn").onclick=()=>showForm();$("cancel").onclick=()=>$("form").classList.add("hide");
 $("save").onclick=async()=>{if(!$("form").reportValidity())return;
-  const l=look($("tour").value,$("paket").value,$("kend").value);
   await persist({id:editing,nama:$("nama").value.trim(),pax:+$("pax").value,tgl:$("tgl").value,jam:$("jam").value,tour:$("tour").value,paket:$("paket").value,kend:$("kend").value,
     guide:getStaff(STAFF[0]),photo:getStaff(STAFF[1]),supir:getStaff(STAFF[2]),harga:$("harga").value===""?null:+$("harga").value,
-    modal:l&&l.m!=null?l.m:(editObj&&editObj.modal!=null?editObj.modal:null),status:$("stf").value,ket:$("ket").value.trim()});
+    modal:$("modal").value===""?null:+$("modal").value,status:$("stf").value,ket:$("ket").value.trim()});
   $("form").classList.add("hide")};
 
 /* ---------- DAFTAR RESERVASI ---------- */
 const people=b=>STAFF.map(s=>stf(b,s.k)),pending=b=>people(b).includes(CONF);
 function render(){
+  if(!$("p-fin").classList.contains("hide"))renderFin();
   const names=clean(data.flatMap(people).filter(x=>x!=="-"&&x!==CONF)).sort(),cur=$("fPtg").value;
   $("fPtg").innerHTML='<option value="">Semua petugas</option><option value="__p">Ada yang Dalam Konfirmasi</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");$("fPtg").value=cur;
   const now=new Date(),t0=new Date(now.getFullYear(),now.getMonth(),now.getDate()),q=$("q").value.toLowerCase(),fv=$("fView").value,fp=$("fPtg").value,fs_=$("fSt").value;
@@ -394,6 +426,35 @@ $("list").onclick=e=>{const t=e.target.closest("button");if(!t)return;const b=da
   if(t.dataset.a==="edit")showForm(b);else if(t.dataset.a==="del")arm(t,()=>remove(b.id));else exportICS([b],"RihlahGo-"+b.nama.replace(/\W+/g,"-")+"-"+b.tgl+".ics")};
 ["fView","fPtg","fSt"].forEach(i=>$(i).onchange=render);$("q").oninput=render;
 $("list").onchange=async e=>{const t=e.target;if(t.dataset.a!=="status")return;const b=data.find(x=>x.id===t.dataset.id);if(b)await persist({...b,status:t.value})};
+
+/* ---------- KEUANGAN ---------- */
+let fin={splits:[{n:"Faris Shafwan Haidar",r:"COO",p:55},{n:"Zaky O'Neal",r:"CEO",p:35},{n:"Perusahaan",r:"",p:10}]},finMonth="",finEdit=false,finDraft=null;
+const r2=x=>Math.round(x*100)/100,shortN=n=>String(n).split(" ")[0];
+const mlabel=m=>new Date(m+"-01T00:00").toLocaleDateString("id-ID",{month:"long",year:"numeric"});
+function renderFin(){
+  const ae=document.activeElement;if(finEdit&&ae&&ae.dataset&&ae.dataset.fi!==undefined)return;
+  const over=data.filter(b=>b.status==="over").sort((a,b)=>startOf(b)-startOf(a));
+  const months=[...new Set(over.map(b=>b.tgl.slice(0,7)))].sort().reverse();if(finMonth&&!months.includes(finMonth))finMonth="";
+  const Lst=over.filter(b=>!finMonth||b.tgl.startsWith(finMonth)),known=b=>b.harga!=null&&b.modal!=null,ok=Lst.filter(known),miss=Lst.filter(b=>!known(b));
+  const lb=b=>b.harga-b.modal,S=f=>ok.reduce((a,b)=>a+f(b),0),rev=S(b=>b.harga),mod=S(b=>b.modal),lab=S(lb),sp=fin.splits;
+  let h=`<div class="bar"><select id="finM"><option value="">Semua periode</option>${months.map(m=>`<option value="${m}" ${m===finMonth?"selected":""}>${mlabel(m)}</option>`).join("")}</select></div>
+  <div class="note" style="margin-bottom:10px">Dihitung otomatis dari reservasi berstatus <b>The Trip is Over</b>. Laba bersih per trip = Harga Tour − Modal.</div>`;
+  if(miss.length)h+=`<div class="card" style="border-color:var(--dng)"><b>⚠ ${miss.length} trip selesai belum punya harga/modal</b> <span class="note">– belum ikut dihitung. Lengkapi lewat Ubah:</span>${miss.map(b=>`<div style="padding:5px 0">${esc(b.nama)} · ${esc(b.tgl)} <button class="btn g s" data-edit="${b.id}">Ubah</button></div>`).join("")}</div>`;
+  h+=`<div class="stats">${[[ok.length,"Trip selesai"],[sar(rev),"Pendapatan"],[sar(mod),"Total modal"],[sar(r2(lab)),"Laba bersih"]].map(([a,b])=>`<div class="stat"><b>${a}</b><span>${b}</span></div>`).join("")}</div>`;
+  h+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b>Pembagian laba bersih</b><button class="btn g s" id="finEditBtn">${finEdit?"Tutup":"✎ Atur persen"}</button></div>`;
+  if(finEdit){const sum=finDraft.splits.reduce((a,x)=>a+(+x.p||0),0);
+    h+=finDraft.splits.map((s,i)=>`<div class="grid" style="grid-template-columns:2fr 1fr 1fr;margin-bottom:6px"><input data-fi="${i}.n" value="${esc(s.n)}"><input data-fi="${i}.r" value="${esc(s.r)}" placeholder="Jabatan"><input data-fi="${i}.p" inputmode="decimal" value="${s.p}"></div>`).join("")+`<div class="note" id="finSum">Total: ${sum}% ${sum===100?"✓":"(harus 100%)"}</div><div class="acts" style="margin-top:8px"><button class="btn s" id="finSave">Simpan pembagian</button></div>`}
+  else h+=sp.map(s=>`<div class="fr"><div><b>${esc(s.n)}</b><div class="note">${esc(s.r)}${s.r?" · ":""}${s.p}%</div></div><b>${sar(r2(lab*s.p/100))}</b></div>`).join("");
+  h+=`</div><div class="mon">Rincian per trip</div>`+(ok.length?ok.map(b=>{const l=lb(b);return `<div class="card"><b>${esc(b.nama)}</b> · ${esc(b.tgl)}<div class="note">${esc(b.tour)} – ${esc(b.paket)}</div><div class="tags"><span class="tag v">Harga ${sar(b.harga)}</span><span class="tag">Modal ${sar(b.modal)}</span><span class="tag ${l<0?"w":""}">Laba ${sar(l)}</span></div><div class="note">${sp.map(s=>`${esc(shortN(s.n))} ${sar(r2(l*s.p/100))}`).join(" · ")}</div></div>`}).join(""):'<div class="card note">Belum ada trip berstatus “The Trip is Over”.</div>');
+  $("finBody").innerHTML=h}
+$("finBody").addEventListener("change",e=>{if(e.target.id==="finM"){finMonth=e.target.value;renderFin()}});
+$("finBody").addEventListener("input",e=>{const t=e.target;if(t.dataset.fi===undefined)return;const [i,f]=t.dataset.fi.split(".");finDraft.splits[i][f]=f==="p"?(num(t.value)||0):t.value;
+  const sum=finDraft.splits.reduce((a,x)=>a+(+x.p||0),0);$("finSum").textContent="Total: "+sum+"% "+(sum===100?"✓":"(harus 100%)")});
+$("finBody").addEventListener("click",e=>{const t=e.target.closest("button");if(!t)return;
+  if(t.id==="finEditBtn"){finEdit=!finEdit;finDraft=clone(fin);renderFin()}
+  else if(t.id==="finSave"){const sum=finDraft.splits.reduce((a,x)=>a+(+x.p||0),0);if(Math.abs(sum-100)>0.001)return alert("Total persentase harus 100%.");
+    fb.setDoc(fb.doc(fs,"config","fin"),finDraft).then(()=>{finEdit=false;renderFin()}).catch(fail)}
+  else if(t.dataset.edit){const b=data.find(x=>x.id===t.dataset.edit);if(b){go("res");showForm(b)}}});
 
 /* ---------- EKSPOR KALENDER ---------- */
 const pad=n=>String(n).padStart(2,"0");
