@@ -68,6 +68,8 @@ input.m{background:var(--gold2);border-color:rgba(232,177,20,.55)}
 .mh,.mr{display:grid;grid-template-columns:1.25fr 1fr 1fr 1.1fr;gap:6px;align-items:center;margin-bottom:5px;font-size:14px}.mh{font-size:12px;color:var(--mut);font-weight:600}.mr b{color:var(--pri);font-size:13px}
 .fr{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-top:1px solid var(--br)}
 .nav button{font-size:13px}
+.rq{display:grid;grid-template-columns:1fr 1fr 34px;gap:6px;margin-bottom:8px}.rq input,.rq select{padding:7px 8px;font-size:15px;min-width:0}.rq .tx{grid-column:1/-1}
+.pay{margin-top:8px;padding:8px 10px;background:var(--pri2);border-radius:10px}.payh{font-size:13.5px}.pbar{height:6px;border-radius:4px;background:var(--br);margin:6px 0;overflow:hidden}.pbar i{display:block;height:100%;background:#1f8a5f}.qp{display:flex;gap:6px;margin-top:6px}.qp input{padding:6px 8px;font-size:15px}
 table.led{width:100%;border-collapse:collapse;font-size:13px;min-width:560px}.led th{text-align:left;color:var(--mut);font-size:12px;padding:6px;border-bottom:1px solid var(--br)}.led td{padding:7px 6px;border-bottom:1px solid var(--br);vertical-align:top}.led .r{text-align:right;white-space:nowrap}.pos{color:#1f8a5f;font-weight:700}.neg{color:var(--dng);font-weight:700}
 .sv{position:sticky;bottom:78px;background:var(--gold2);border:1px solid var(--gold);border-radius:12px;padding:8px 10px;display:flex;gap:8px;align-items:center;justify-content:space-between;z-index:4}
 </style>
@@ -106,7 +108,7 @@ setTimeout(function(){if(!window.__boot){var m=document.getElementById("loginMsg
       <textarea id="cfgTxt" placeholder='const firebaseConfig = { apiKey: "...", authDomain: "...", projectId: "...", ... };'></textarea>
       <button class="btn a s" id="cfgSave" type="button" style="margin-top:8px">Simpan konfigurasi</button>
     </div>
-    <div style="margin-top:14px"><a href="#" id="goSetup" class="note">Masalah login? Atur konfigurasi</a> <span class="note">· v5</span></div>
+    <div style="margin-top:14px"><a href="#" id="goSetup" class="note">Masalah login? Atur konfigurasi</a> <span class="note">· v6</span></div>
   </div>
 </div>
 
@@ -137,8 +139,11 @@ setTimeout(function(){if(!window.__boot){var m=document.getElementById("loginMsg
         <div><label>11. Harga Tour (SAR)</label><input id="harga" type="number" inputmode="decimal" min="0" step="any"></div>
         <div><label>12. Modal (SAR)</label><input id="modal" type="number" inputmode="decimal" min="0" step="any"></div>
         <div class="full note" id="hint"></div>
-        <div class="full"><label>13. Status Trip</label><select id="stf"></select></div>
-        <div class="full"><label>14. Keterangan</label><textarea id="ket"></textarea></div>
+        <div class="full"><label>13. Request Customer <span class="note">(menambah / mengurangi harga)</span></label><div id="reqBox"></div><button class="btn g s" type="button" id="addReq">＋ Tambah request</button></div>
+        <div class="full"><label>14. Pembayaran Customer <span class="note">(DP / pelunasan)</span></label><div id="payBox"></div><button class="btn g s" type="button" id="addPay">＋ Catat pembayaran</button></div>
+        <div class="full card" id="sumBox" style="margin:0;padding:10px;font-size:14px"></div>
+        <div class="full"><label>15. Status Trip</label><select id="stf"></select></div>
+        <div class="full"><label>16. Keterangan</label><textarea id="ket"></textarea></div>
       </div>
       <div class="acts" style="margin-top:12px"><button class="btn" id="save">Simpan</button><button class="btn g" id="cancel" type="button">Batal</button></div>
     </form>
@@ -362,7 +367,25 @@ const STAFF=[{k:"guide",n:8,label:"Tour Guide",ic:"🧭"},{k:"photo",n:9,label:"
 const startOf=b=>new Date(b.tgl+"T"+b.jam);
 const stf=(b,k)=>b[k]??(k==="guide"?b.petugas:null)??"-";
 const clean=a=>[...new Set(a.map(s=>s.trim()).filter(Boolean))];
-let editing=null,editObj=null,lastAuto=null,lastAutoM=null;
+let editing=null,editObj=null,lastAuto=null,lastAutoM=null,reqs=[],pays=[],payOpen=null;
+const msum=a=>(a||[]).reduce((s,x)=>s+(+x.a||0),0);
+const total=b=>b.harga==null?null:Math.round((b.harga+msum(b.req))*100)/100;
+const paidOf=b=>Math.round(msum(b.pay)*100)/100;
+const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
+const fdate=t=>{const d=new Date(t+"T00:00");return isNaN(d)?"":d.toLocaleDateString("id-ID",{day:"numeric",month:"short"})};
+function sumDraw(){const base=$("harga").value===""?null:+$("harga").value,r=reqs.reduce((s,x)=>s+x.s*(+x.v||0),0),p=pays.reduce((s,x)=>s+(+x.a||0),0);
+  if(base==null){$("sumBox").textContent="Isi Harga Tour untuk melihat total & sisa tagihan.";return}
+  const tot=base+r;$("sumBox").innerHTML=`Harga dasar ${sar(base)}${r?` · request ${r>0?"+":"−"}${sar(Math.abs(r))}`:""} → <b>Total ${sar(tot)}</b><br>Dibayar ${sar(p)} · <b>Sisa ${sar(tot-p)}</b>`}
+function drawReq(){$("reqBox").innerHTML=reqs.map((x,i)=>`<div class="rq"><select data-r="${i}.s"><option value="1" ${x.s>0?"selected":""}>＋ Tambah</option><option value="-1" ${x.s<0?"selected":""}>− Kurangi</option></select><input inputmode="decimal" data-r="${i}.v" placeholder="SAR" value="${x.v||""}"><button type="button" class="x" data-rdel="${i}">✕</button><input class="tx" data-r="${i}.k" placeholder="Request (mis. tambah foto, ganti hotel)" value="${esc(x.k)}"></div>`).join("");sumDraw()}
+function drawPay(){$("payBox").innerHTML=pays.map((x,i)=>`<div class="rq"><input type="date" data-y="${i}.t" value="${esc(x.t)}"><input inputmode="decimal" data-y="${i}.a" placeholder="SAR dibayar" value="${x.a||""}"><button type="button" class="x" data-ydel="${i}">✕</button><input class="tx" data-y="${i}.n" placeholder="Catatan (DP / pelunasan)" value="${esc(x.n)}"></div>`).join("");sumDraw()}
+$("addReq").onclick=()=>{reqs.push({k:"",s:1,v:0});drawReq()};
+$("addPay").onclick=()=>{pays.push({t:today(),a:0,n:pays.length?"Pelunasan":"DP"});drawPay()};
+$("form").addEventListener("input",e=>{const t=e.target;
+  if(t.dataset.r){const [i,f]=t.dataset.r.split(".");if(f==="s")reqs[i].s=+t.value;else if(f==="v")reqs[i].v=num(t.value)||0;else reqs[i].k=t.value;sumDraw()}
+  else if(t.dataset.y){const [i,f]=t.dataset.y.split(".");pays[i][f]=f==="a"?(num(t.value)||0):t.value;sumDraw()}
+  else if(t.id==="harga")sumDraw()});
+$("form").addEventListener("click",e=>{const t=e.target.closest("button");if(!t)return;
+  if(t.dataset.rdel!==undefined){reqs.splice(+t.dataset.rdel,1);drawReq()}else if(t.dataset.ydel!==undefined){pays.splice(+t.dataset.ydel,1);drawPay()}});
 function fillSel(el,items,cur,ph){const a=[...items];if(cur&&!a.includes(cur))a.push(cur);el.innerHTML=(ph?`<option value="">${ph}</option>`:"")+a.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("");el.value=cur||""}
 function buildStaffForm(){
   $("stf").innerHTML=ST.map(x=>`<option value="${x.v}">${x.l}</option>`).join("");
@@ -380,30 +403,40 @@ function hintPrice(force){const l=look($("tour").value,$("paket").value,$("kend"
   if(l){if(l.j!=null&&(force||h.value===""||Number(h.value)===lastAuto)){h.value=l.j;lastAuto=l.j}
     if(l.m!=null&&(force||m.value===""||Number(m.value)===lastAutoM)){m.value=l.m;lastAutoM=l.m}
     $("hint").textContent=`Katalog: jual ${sar(l.j)} · modal ${sar(l.m)} (bisa diubah manual)`}
-  else $("hint").textContent=$("tour").value&&$("paket").value&&$("kend").value?"Tidak ada harga katalog untuk kombinasi ini – isi harga & modal manual.":""}
+  else $("hint").textContent=$("tour").value&&$("paket").value&&$("kend").value?"Tidak ada harga katalog untuk kombinasi ini – isi harga & modal manual.":"";sumDraw()}
 $("tour").onchange=()=>{const p=$("paket").value,k=$("kend").value,t=tourObj($("tour").value);refreshDeps(t&&t.pakets.includes(p)?p:"",t&&t.kend.includes(k)?k:"");hintPrice(false)};
 $("paket").onchange=$("kend").onchange=()=>hintPrice(false);
 function showForm(b){editing=b?b.id:null;editObj=b||null;lastAuto=null;lastAutoM=null;const v=b||{};
   $("form").classList.remove("hide");
-  $("nama").value=v.nama||"";$("pax").value=v.pax||"";$("harga").value=v.harga??"";$("modal").value=v.modal??"";$("tgl").value=v.tgl||"";$("jam").value=v.jam||"";$("ket").value=v.ket||"";$("stf").value=v.status||"reserved";
+  $("nama").value=v.nama||"";$("pax").value=v.pax||"";$("harga").value=v.harga??"";$("modal").value=v.modal??"";reqs=(v.req||[]).map(x=>({k:x.k||"",s:x.a<0?-1:1,v:Math.abs(x.a)}));pays=(v.pay||[]).map(x=>({t:x.t,a:x.a,n:x.n||""}));drawReq();drawPay();$("tgl").value=v.tgl||"";$("jam").value=v.jam||"";$("ket").value=v.ket||"";$("stf").value=v.status||"reserved";
   fillSel($("tour"),opts.tours.map(t=>t.name),v.tour||"","— pilih tour —");refreshDeps(v.paket||"",v.kend||"");
   STAFF.forEach(s=>setStaff(s,b?stf(v,s.k):null));hintPrice(false);$("nama").focus();$("form").scrollIntoView({behavior:"smooth"})}
 $("newBtn").onclick=()=>showForm();$("cancel").onclick=()=>$("form").classList.add("hide");
 $("save").onclick=async()=>{if(!$("form").reportValidity())return;
   await persist({id:editing,nama:$("nama").value.trim(),pax:+$("pax").value,tgl:$("tgl").value,jam:$("jam").value,tour:$("tour").value,paket:$("paket").value,kend:$("kend").value,
     guide:getStaff(STAFF[0]),photo:getStaff(STAFF[1]),supir:getStaff(STAFF[2]),harga:$("harga").value===""?null:+$("harga").value,
-    modal:$("modal").value===""?null:+$("modal").value,status:$("stf").value,ket:$("ket").value.trim()});
+    modal:$("modal").value===""?null:+$("modal").value,status:$("stf").value,ket:$("ket").value.trim(),req:reqs.filter(x=>x.v>0||x.k.trim()).map(x=>({k:x.k.trim(),a:x.s*(x.v||0)})),pay:pays.filter(x=>x.a>0).map(x=>({t:x.t||today(),a:+x.a,n:(x.n||"").trim()}))});
   $("form").classList.add("hide")};
 
 /* ---------- DAFTAR RESERVASI ---------- */
+function cardExtra(b){const t=total(b),p=paidOf(b);let h="";
+  if((b.req||[]).length)h+=`<div class="note">${b.req.map(x=>`↳ ${esc(x.k||"Request")}: <b class="${x.a<0?"neg":"pos"}">${x.a<0?"−":"+"}${sar(Math.abs(x.a))}</b>`).join("<br>")}</div>`;
+  if(t==null)return h+'<div class="note">💵 Isi Harga Tour untuk melacak pembayaran.</div>';
+  const pc=t>0?Math.min(100,Math.round(p/t*100)):0,sisa=Math.round((t-p)*100)/100;
+  return h+`<div class="pay"><div class="payh">💵 Dibayar <b>${sar(p)}</b> dari ${sar(t)} · ${sisa<0?`<b class="pos">Lebih bayar ${sar(-sisa)}</b>`:sisa===0?'<b class="pos">LUNAS</b>':`Sisa <b class="neg">${sar(sisa)}</b>`}</div><div class="pbar"><i style="width:${pc}%"></i></div>`+
+   (b.pay||[]).map(x=>`<div class="note">• ${fdate(x.t)} – ${sar(x.a)}${x.n?" ("+esc(x.n)+")":""}</div>`).join("")+
+   (payOpen===b.id?`<div class="qp"><input inputmode="decimal" data-qp="${b.id}" placeholder="Jumlah dibayar (SAR)"><button class="btn s" data-a="paysave" data-id="${b.id}">Simpan</button><button class="btn g s" data-a="payclose" data-id="${b.id}">Batal</button></div>`:`<button class="btn g s" data-a="payopen" data-id="${b.id}" style="margin-top:6px">＋ Catat pembayaran</button>`)+`</div>`}
+function paySave(b){const i=document.querySelector(`[data-qp="${b.id}"]`),a=i?num(i.value):null;if(!a||a<=0)return alert("Isi jumlah pembayaran (lebih dari 0).");
+  if(document.activeElement)document.activeElement.blur();payOpen=null;persist({...b,pay:[...(b.pay||[]),{t:today(),a,n:(b.pay||[]).length?"Pembayaran":"DP"}]});render()}
 const people=b=>STAFF.map(s=>stf(b,s.k)),pending=b=>people(b).includes(CONF);
 function render(){
+  const ae0=document.activeElement;if(ae0&&ae0.dataset&&ae0.dataset.qp!==undefined)return;
   if(!$("p-fin").classList.contains("hide"))renderFin();
   const names=clean(data.flatMap(people).filter(x=>x!=="-"&&x!==CONF)).sort(),cur=$("fPtg").value;
   $("fPtg").innerHTML='<option value="">Semua petugas</option><option value="__p">Ada yang Dalam Konfirmasi</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");$("fPtg").value=cur;
   const now=new Date(),t0=new Date(now.getFullYear(),now.getMonth(),now.getDate()),q=$("q").value.toLowerCase(),fv=$("fView").value,fp=$("fPtg").value,fs_=$("fSt").value;
   const mb=data.filter(b=>{const s=startOf(b);return b.status!=="cancel"&&s.getFullYear()===now.getFullYear()&&s.getMonth()===now.getMonth()});
-  const rev=mb.reduce((a,b)=>a+(b.harga||0),0),prof=mb.reduce((a,b)=>a+(b.modal!=null&&b.harga!=null?b.harga-b.modal:0),0);
+  const rev=mb.reduce((a,b)=>a+(total(b)||0),0),prof=mb.reduce((a,b)=>a+(b.modal!=null&&total(b)!=null?total(b)-b.modal:0),0);
   const pend=data.filter(b=>b.status!=="cancel"&&startOf(b)>=t0&&pending(b)).length;
   $("stats").innerHTML=[[mb.length,"Trip bulan ini"],[pend,"Perlu konfirmasi petugas"],[sar(rev),"Pendapatan bulan ini"],[sar(prof),"Estimasi laba (modal katalog)"]].map(([a,b])=>`<div class="stat"><b>${a}</b><span>${b}</span></div>`).join("");
   const todays=data.filter(b=>{const s=startOf(b);return b.status!=="cancel"&&s>=t0&&s<new Date(t0.getTime()+864e5)}).sort((a,b)=>startOf(a)-startOf(b));
@@ -415,17 +448,17 @@ function render(){
   if(!rowsL.length){$("list").innerHTML='<div class="card note">Belum ada reservasi pada tampilan ini.</div>';return}
   let out="",last="";
   for(const b of rowsL){const s=startOf(b),m=s.toLocaleDateString("id-ID",{month:"long",year:"numeric"});if(m!==last){out+=`<div class="mon">${m}</div>`;last=m}
-    const lb=b.modal!=null&&b.harga!=null?`<span class="tag v">💹 Laba ${sar(b.harga-b.modal)}</span>`:"";
+    const lb=b.modal!=null&&total(b)!=null?`<span class="tag v">💹 Laba ${sar(total(b)-b.modal)}</span>`:"";
     out+=`<div class="card item st-${stOf(b).v}"><div class="date"><small>${s.toLocaleDateString("id-ID",{weekday:"short"})}</small><b>${s.getDate()}</b><small>${s.toLocaleDateString("id-ID",{month:"short"})}</small></div>
     <div class="main"><h3>${esc(b.nama)} · ${b.pax} pax</h3><div class="stline"><span class="badge">${stOf(b).l}</span>${stepsOf(b)}</div>
     <div class="note">🕒 ${esc(b.jam)} · ${esc(b.tour)} – ${esc(b.paket)}</div>
-    <div class="tags"><span class="tag v">🚐 ${esc(b.kend)}</span>${STAFF.map(x=>{const v=stf(b,x.k);return `<span class="tag ${v===CONF?"w":""}">${x.ic} ${esc(v)}</span>`}).join("")}<span class="tag v">💰 ${sar(b.harga)}</span>${lb}</div>
-    ${b.ket?`<div class="note">📝 ${esc(b.ket)}</div>`:""}${b.updatedBy?`<div class="note">✎ ${esc(String(b.updatedBy).split("@")[0])}</div>`:""}
+    <div class="tags"><span class="tag v">🚐 ${esc(b.kend)}</span>${STAFF.map(x=>{const v=stf(b,x.k);return `<span class="tag ${v===CONF?"w":""}">${x.ic} ${esc(v)}</span>`}).join("")}<span class="tag v">💰 ${sar(total(b))}</span>${lb}</div>
+    ${b.ket?`<div class="note">📝 ${esc(b.ket)}</div>`:""}${cardExtra(b)}${b.updatedBy?`<div class="note">✎ ${esc(String(b.updatedBy).split("@")[0])}</div>`:""}
     <div class="acts"><button class="btn s" data-a="ics" data-id="${b.id}">📅 Ke Kalender</button><button class="btn g s" data-a="edit" data-id="${b.id}">Ubah</button><button class="btn g s d" data-a="del" data-id="${b.id}">Hapus</button></div>
     <div class="qs"><label>Status:</label><select data-a="status" data-id="${b.id}">${ST.map(x=>`<option value="${x.v}" ${x.v===stOf(b).v?"selected":""}>${x.l}</option>`).join("")}</select></div></div></div>`}
   $("list").innerHTML=out}
 $("list").onclick=e=>{const t=e.target.closest("button");if(!t)return;const b=data.find(x=>x.id===t.dataset.id);if(!b)return;
-  if(t.dataset.a==="edit")showForm(b);else if(t.dataset.a==="del")arm(t,()=>remove(b.id));else exportICS([b],"RihlahGo-"+b.nama.replace(/\W+/g,"-")+"-"+b.tgl+".ics")};
+  if(t.dataset.a==="payopen"){payOpen=b.id;render()}else if(t.dataset.a==="payclose"){payOpen=null;render()}else if(t.dataset.a==="paysave")paySave(b);else if(t.dataset.a==="edit")showForm(b);else if(t.dataset.a==="del")arm(t,()=>remove(b.id));else exportICS([b],"RihlahGo-"+b.nama.replace(/\W+/g,"-")+"-"+b.tgl+".ics")};
 ["fView","fPtg","fSt"].forEach(i=>$(i).onchange=render);$("q").oninput=render;
 $("list").onchange=async e=>{const t=e.target;if(t.dataset.a!=="status")return;const b=data.find(x=>x.id===t.dataset.id);if(b)await persist({...b,status:t.value})};
 
@@ -437,7 +470,7 @@ function finPills(){return `<div class="pills"><button class="pill ${finTab==="s
 function monthSel(months){return `<div class="bar"><select id="finM"><option value="">Semua periode</option>${months.map(m=>`<option value="${m}" ${m===finMonth?"selected":""}>${mlabel(m)}</option>`).join("")}</select></div>`}
 function cashHtml(over){
   const co=fin.splits.find(s=>/perusahaan/i.test(s.n))||fin.splits[fin.splits.length-1];
-  const auto=over.filter(b=>b.harga!=null&&b.modal!=null).map(b=>({id:"a"+b.id,tgl:b.tgl,jenis:"in",auto:1,jumlah:r2((b.harga-b.modal)*co.p/100),ket:`Bagi hasil ${co.p}% – ${b.nama} (${b.tour})`}));
+  const auto=over.filter(b=>total(b)!=null&&b.modal!=null).map(b=>({id:"a"+b.id,tgl:b.tgl,jenis:"in",auto:1,jumlah:r2((total(b)-b.modal)*co.p/100),ket:`Bagi hasil ${co.p}% – ${b.nama} (${b.tour})`}));
   const all=auto.concat(cash.map(c=>({...c,auto:0}))).sort((a,b)=>String(a.tgl).localeCompare(String(b.tgl))||(a.jenis==="in"?0:1)-(b.jenis==="in"?0:1)||String(a.id).localeCompare(String(b.id)));
   let sd=0;all.forEach(x=>{sd=r2(sd+(x.jenis==="in"?x.jumlah:-x.jumlah));x.saldo=sd});
   const view=all.filter(x=>!finMonth||String(x.tgl).startsWith(finMonth)),sum=f=>r2(view.filter(f).reduce((a,x)=>a+x.jumlah,0));
@@ -462,8 +495,8 @@ function renderFin(){
   const ae=document.activeElement;if(ae&&ae.dataset&&(ae.dataset.cf!==undefined||(finEdit&&ae.dataset.fi!==undefined)))return;
   const over=data.filter(b=>b.status==="over").sort((a,b)=>startOf(b)-startOf(a));
   const months=[...new Set(over.map(b=>b.tgl.slice(0,7)).concat(cash.map(c=>String(c.tgl).slice(0,7))))].sort().reverse();if(finMonth&&!months.includes(finMonth))finMonth="";
-  const Lst=over.filter(b=>!finMonth||b.tgl.startsWith(finMonth)),known=b=>b.harga!=null&&b.modal!=null,ok=Lst.filter(known),miss=Lst.filter(b=>!known(b));
-  const lb=b=>b.harga-b.modal,S=f=>ok.reduce((a,b)=>a+f(b),0),rev=S(b=>b.harga),mod=S(b=>b.modal),lab=S(lb),sp=fin.splits;
+  const Lst=over.filter(b=>!finMonth||b.tgl.startsWith(finMonth)),known=b=>total(b)!=null&&b.modal!=null,ok=Lst.filter(known),miss=Lst.filter(b=>!known(b));
+  const lb=b=>total(b)-b.modal,S=f=>ok.reduce((a,b)=>a+f(b),0),rev=S(b=>total(b)),mod=S(b=>b.modal),lab=S(lb),sp=fin.splits;
   if(finTab==="cash"){$("finBody").innerHTML=finPills()+monthSel(months)+cashHtml(over);return}
   let h=finPills()+monthSel(months)+`
   <div class="note" style="margin-bottom:10px">Dihitung otomatis dari reservasi berstatus <b>The Trip is Over</b>. Laba bersih per trip = Harga Tour − Modal.</div>`;
@@ -473,7 +506,7 @@ function renderFin(){
   if(finEdit){const sum=finDraft.splits.reduce((a,x)=>a+(+x.p||0),0);
     h+=finDraft.splits.map((s,i)=>`<div class="grid" style="grid-template-columns:2fr 1fr 1fr;margin-bottom:6px"><input data-fi="${i}.n" value="${esc(s.n)}"><input data-fi="${i}.r" value="${esc(s.r)}" placeholder="Jabatan"><input data-fi="${i}.p" inputmode="decimal" value="${s.p}"></div>`).join("")+`<div class="note" id="finSum">Total: ${sum}% ${sum===100?"✓":"(harus 100%)"}</div><div class="acts" style="margin-top:8px"><button class="btn s" id="finSave">Simpan pembagian</button></div>`}
   else h+=sp.map(s=>`<div class="fr"><div><b>${esc(s.n)}</b><div class="note">${esc(s.r)}${s.r?" · ":""}${s.p}%</div></div><b>${sar(r2(lab*s.p/100))}</b></div>`).join("");
-  h+=`</div><div class="mon">Rincian per trip</div>`+(ok.length?ok.map(b=>{const l=lb(b);return `<div class="card"><b>${esc(b.nama)}</b> · ${esc(b.tgl)}<div class="note">${esc(b.tour)} – ${esc(b.paket)}</div><div class="tags"><span class="tag v">Harga ${sar(b.harga)}</span><span class="tag">Modal ${sar(b.modal)}</span><span class="tag ${l<0?"w":""}">Laba ${sar(l)}</span></div><div class="note">${sp.map(s=>`${esc(shortN(s.n))} ${sar(r2(l*s.p/100))}`).join(" · ")}</div></div>`}).join(""):'<div class="card note">Belum ada trip berstatus “The Trip is Over”.</div>');
+  h+=`</div><div class="mon">Rincian per trip</div>`+(ok.length?ok.map(b=>{const l=lb(b);return `<div class="card"><b>${esc(b.nama)}</b> · ${esc(b.tgl)}<div class="note">${esc(b.tour)} – ${esc(b.paket)}</div><div class="tags"><span class="tag v">Harga ${sar(total(b))}</span><span class="tag">Modal ${sar(b.modal)}</span><span class="tag ${l<0?"w":""}">Laba ${sar(l)}</span></div><div class="note">${sp.map(s=>`${esc(shortN(s.n))} ${sar(r2(l*s.p/100))}`).join(" · ")}</div></div>`}).join(""):'<div class="card note">Belum ada trip berstatus “The Trip is Over”.</div>');
   $("finBody").innerHTML=h}
 $("finBody").addEventListener("change",e=>{if(e.target.id==="finM"){finMonth=e.target.value;renderFin()}});
 $("finBody").addEventListener("input",e=>{const t=e.target;if(t.dataset.cf){cf[t.dataset.cf]=t.value;return}if(t.dataset.fi===undefined)return;const [i,f]=t.dataset.fi.split(".");finDraft.splits[i][f]=f==="p"?(num(t.value)||0):t.value;
@@ -496,7 +529,7 @@ const fold=l=>{const o=[];while(l.length>73){o.push(l.slice(0,73));l=" "+l.slice
 function exportICS(list,fname){
   const L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//RihlahGo//Jadwal//ID","CALSCALE:GREGORIAN","X-WR-CALNAME:RihlahGo"];
   for(const b of list){const s=startOf(b),e=new Date(s.getTime()+4*3600e3);
-    const desc=`Customer: ${b.nama}\nPax: ${b.pax}\nTour: ${b.tour}\nPaket: ${b.paket}\nKendaraan: ${b.kend}\nTour Guide: ${stf(b,"guide")}\nPhotographer: ${stf(b,"photo")}\nSupir: ${stf(b,"supir")}\nHarga: ${sar(b.harga)}\nStatus: ${stOf(b).l}\nKeterangan: ${b.ket||"-"}`;
+    const desc=`Customer: ${b.nama}\nPax: ${b.pax}\nTour: ${b.tour}\nPaket: ${b.paket}\nKendaraan: ${b.kend}\nTour Guide: ${stf(b,"guide")}\nPhotographer: ${stf(b,"photo")}\nSupir: ${stf(b,"supir")}\nHarga: ${sar(total(b))}\nDibayar: ${sar(paidOf(b))}\nStatus: ${stOf(b).l}\nKeterangan: ${b.ket||"-"}`;
     L.push("BEGIN:VEVENT","UID:"+b.id+"@rihlahgo","DTSTAMP:"+new Date().toISOString().replace(/[-:]|\.\d+/g,""),"DTSTART:"+ics(s),"DTEND:"+ics(e),fold("SUMMARY:"+ie(`${b.tour} – ${b.nama} (${b.pax} pax)`)),fold("DESCRIPTION:"+ie(desc)),"STATUS:"+(b.status==="cancel"?"CANCELLED":pending(b)?"TENTATIVE":"CONFIRMED"),"END:VEVENT")}
   L.push("END:VCALENDAR");saveFile(fname,L.join("\r\n")+"\r\n")}
 async function saveFile(name,text){const blob=new Blob([text],{type:"text/calendar"}),file=new File([blob],name,{type:"text/calendar"});
