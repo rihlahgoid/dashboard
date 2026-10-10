@@ -108,7 +108,7 @@ setTimeout(function(){if(!window.__boot){var m=document.getElementById("loginMsg
       <textarea id="cfgTxt" placeholder='const firebaseConfig = { apiKey: "...", authDomain: "...", projectId: "...", ... };'></textarea>
       <button class="btn a s" id="cfgSave" type="button" style="margin-top:8px">Simpan konfigurasi</button>
     </div>
-    <div style="margin-top:14px"><a href="#" id="goSetup" class="note">Masalah login? Atur konfigurasi</a> <span class="note">· v6</span></div>
+    <div style="margin-top:14px"><a href="#" id="goSetup" class="note">Masalah login? Atur konfigurasi</a> <span class="note">· v7</span></div>
   </div>
 </div>
 
@@ -159,6 +159,8 @@ setTimeout(function(){if(!window.__boot){var m=document.getElementById("loginMsg
     <div id="dbBody"></div>
   </section>
 
+  <section id="p-ot" class="hide"><h2 class="pt">🚌 Open Trip</h2><div id="otBody"></div></section>
+
   <section id="p-fin" class="hide"><h2 class="pt" data-ui="titleFin"></h2><div id="finBody"></div></section>
 
   <!-- ===== PENGATURAN ===== -->
@@ -173,7 +175,7 @@ setTimeout(function(){if(!window.__boot){var m=document.getElementById("loginMsg
     <div class="card note">Tips: tambahkan ke Layar Utama lewat Safari → Bagikan → Tambah ke Layar Utama.</div>
   </section>
 </div>
-<nav class="nav hide" id="nav"><button data-go="res" data-ui="tabRes"></button><button data-go="db" data-ui="tabDb"></button><button data-go="fin" data-ui="tabFin"></button><button data-go="set" data-ui="tabSet"></button></nav>
+<nav class="nav hide" id="nav"><button data-go="res" data-ui="tabRes"></button><button data-go="db" data-ui="tabDb"></button><button data-go="fin" data-ui="tabFin"></button><button data-go="ot">🚌 Open Trip</button><button data-go="set" data-ui="tabSet"></button></nav>
 
 <script type="module">
 window.__boot=true;
@@ -277,6 +279,9 @@ function listen(){
     Object.keys(cat).filter(k=>k.startsWith("c:")&&!ids.includes(k)).forEach(k=>{delete cat[k];delete work[k];delete dirty[k]});
     s.docs.forEach(d=>{const k="c:"+d.id;if(!dirty[k]){cat[k]=d.data();work[k]=clone(cat[k])}});
     computeOpts();if(!$("p-db").classList.contains("hide")&&!addMode)renderDb();render()}));
+  unsubs.push(fb.onSnapshot(fb.collection(fs,"ot_trips"),s=>{otT=s.docs.map(d=>({id:d.id,...d.data()}));if(otVis())renderOt()},()=>{}));
+  unsubs.push(fb.onSnapshot(fb.collection(fs,"ot_bookings"),s=>{otB=s.docs.map(d=>({id:d.id,...d.data()}));if(otVis())renderOt()},()=>{}));
+  unsubs.push(fb.onSnapshot(fb.collection(fs,"ot_seats"),s=>{otS=s.docs.map(d=>d.data());if(otVis())renderOt()},()=>{}));
   unsubs.push(fb.onSnapshot(fb.collection(fs,"cashflow"),s=>{cash=s.docs.map(d=>({id:d.id,...d.data()}));render()}));
   unsubs.push(fb.onSnapshot(D("config","fin"),s=>{if(s.exists()&&s.data().splits)fin=s.data();render()}));
   unsubs.push(fb.onSnapshot(fb.collection(fs,"bookings"),s=>{data=s.docs.map(d=>({id:d.id,...d.data()}));
@@ -289,9 +294,9 @@ async function persist(b){
 const remove=id=>fb.deleteDoc(fb.doc(fs,"bookings",id)).catch(fail);
 
 /* ---------- NAVIGASI ---------- */
-function go(p){["res","db","fin","set"].forEach(x=>$("p-"+x).classList.toggle("hide",x!==p));
+function go(p){["res","db","fin","ot","set"].forEach(x=>$("p-"+x).classList.toggle("hide",x!==p));
   document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("on",b.dataset.go===p));
-  try{localStorage.setItem("rg_tab",p)}catch(e){}if(p==="db")renderDb();if(p==="fin")renderFin();window.scrollTo(0,0)}
+  try{localStorage.setItem("rg_tab",p)}catch(e){}if(p==="db")renderDb();if(p==="fin")renderFin();if(p==="ot")renderOt();window.scrollTo(0,0)}
 document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>go(b.dataset.go));
 
 /* ---------- PENGATURAN TEKS ---------- */
@@ -462,6 +467,15 @@ $("list").onclick=e=>{const t=e.target.closest("button");if(!t)return;const b=da
 ["fView","fPtg","fSt"].forEach(i=>$(i).onchange=render);$("q").oninput=render;
 $("list").onchange=async e=>{const t=e.target;if(t.dataset.a!=="status")return;const b=data.find(x=>x.id===t.dataset.id);if(b)await persist({...b,status:t.value})};
 
+/* ---------- OPEN TRIP (realtime dari website Open Trip) ---------- */
+let otT=[],otB=[],otS=[];
+const otVis=()=>!$("p-ot").classList.contains("hide");
+function renderOt(){const live=b=>b.status!=="Dibatalkan",M={cash:"Cash Riyal",tr:"Transfer Riyal",idr:"Transfer Rupiah"};
+ let h=`<div class="note" style="margin-bottom:10px">Data realtime dari website Open Trip. Mengubah data, mengirim invoice, dan memblokir seat dilakukan di halaman admin website Open Trip.</div>`;
+ h+=otT.slice().sort((a,b)=>(a.ts||0)-(b.ts||0)).map(t=>{const B=otB.filter(b=>b.tid===t.id&&live(b)),seats=otS.filter(x=>x.tid===t.id&&x.st==="taken").length,tot=B.reduce((a,b)=>a+(b.total||0),0),lunas=B.filter(b=>b.status==="Lunas").reduce((a,b)=>a+(b.total||0),0);
+  return`<div class="card"><b>${esc(t.title)}</b> <span class="note">${esc(t.date||"")} ${t.open?"":"· pendaftaran ditutup"}</span><div class="stats" style="margin-top:8px">${[[B.length,"Reservasi"],[seats+"/50","Seat terisi"],[sar(tot),"Total tagihan"],[sar(lunas),"Sudah lunas"]].map(([a,b])=>`<div class="stat"><b>${a}</b><span>${b}</span></div>`).join("")}</div><div class="note">📤 ${B.filter(b=>!b.sent).length} belum dikirimi invoice · 👥 ${B.filter(b=>!b.joined).length} belum masuk grup</div></div>`}).join("")||'<div class="card note">Belum ada data Open Trip.</div>';
+ h+=`<div class="mon">Reservasi terbaru</div>`+(otB.slice().sort((a,b)=>b.ts-a.ts).slice(0,40).map(b=>{const t=otT.find(x=>x.id===b.tid)||{title:"?"};return`<div class="card"><b>${esc(b.code)}</b> · RG-OT-${esc(b.inv)} <span class="tag">${esc(t.title)}</span><div>${esc(b.pj)} · ${b.seats.length} peserta · Seat ${b.seats.join(", ")}</div><div class="note">${M[b.method]||""} · ${sar(b.total)} · <b>${esc(b.status)}</b>${b.status==="Dibatalkan"?"":(b.sent?" · invoice terkirim":" · invoice belum dikirim")}</div></div>`}).join("")||'<div class="card note">Belum ada reservasi.</div>');
+ $("otBody").innerHTML=h}
 /* ---------- KEUANGAN ---------- */
 let fin={splits:[{n:"Faris Shafwan Haidar",r:"COO",p:55},{n:"Zaky O'Neal",r:"CEO",p:35},{n:"Perusahaan",r:"",p:10}]},finMonth="",finEdit=false,finDraft=null,finTab="share",cash=[],cf={id:null,tgl:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10),jenis:"out",jml:"",ket:""};
 const r2=x=>Math.round(x*100)/100,shortN=n=>String(n).split(" ")[0];
